@@ -1,12 +1,10 @@
-```markdown
 Self-Hosted DNS Resolver using dnsdist + Unbound
 
+```markdown
 This repository documents how to set up a secure, private DNS resolver using:
 
 - dnsdist → front-end DNS proxy (ACLs, rate limiting, monitoring)
 - Unbound → recursive DNS resolver (the “brain”)
-
-**Architecture**
 ```
 
 Client → dnsdist (port 53) → Unbound (port 5335) → Internet
