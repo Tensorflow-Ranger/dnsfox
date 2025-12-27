@@ -1,10 +1,10 @@
 ```markdown
-# Self-Hosted DNS Resolver using dnsdist + Unbound
+Self-Hosted DNS Resolver using dnsdist + Unbound
 
-This repository documents how to set up a **secure, private DNS resolver** using:
+This repository documents how to set up a secure, private DNS resolver using:
 
-- **dnsdist** → front-end DNS proxy (ACLs, rate limiting, monitoring)
-- **Unbound** → recursive DNS resolver (the “brain”)
+- dnsdist → front-end DNS proxy (ACLs, rate limiting, monitoring)
+- Unbound → recursive DNS resolver (the “brain”)
 
 **Architecture**
 ```
@@ -15,16 +15,16 @@ Client → dnsdist (port 53) → Unbound (port 5335) → Internet
 
 ---
 
-## 📁 Repository 
+Repository 
 
-- `dnsdist.conf` → main dnsdist configuration  
-- `unbound.conf.d/` → modular Unbound configuration directory  
+- dnsdist.conf → main dnsdist configuration  
+- unbound.conf.d/ → modular Unbound configuration directory  
 
 ---
 
-## Step 1: Install Dependencies
+Step 1: Install Dependencies
 
-### Install dnsdist
+Install dnsdist
 ```bash
 sudo apt update && sudo apt install -y dnsdist
 ````
@@ -148,6 +148,3 @@ dig @YOUR_AWS_PUBLIC_IP google.com
 If you receive an IP address, your resolver is working correctly!
 
 ---
-
-```
-```
