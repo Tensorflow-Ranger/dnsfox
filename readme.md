@@ -7,9 +7,9 @@ First things first, It's super cool xD
 
 * **Custom Blocklists & "Nuclear Options":**  Manual Control: Instantly block specific domains (e.g., tiktok.com or facebook.com) for productivity or detox.
 
-Automated Lists: Integrate massive community-driven lists (HaGeZi, StevenBlack) to block hundreds of thousands of malicious or explicit domains.
+     * Automated Lists: Integrate massive community-driven lists (HaGeZi, StevenBlack) to block hundreds of thousands of malicious or explicit domains.
 
-Wildcard Blocking: Block entire TLDs or subdomains with a single rule.
+     * Wildcard Blocking: Block entire TLDs or subdomains with a single rule.
 
 * **Battery & Data Savings:** By blocking ads at the DNS level, your device never downloads heavy tracking scripts, video ads, or banners. This reduces CPU cycles and radio usage, significantly extending battery life on mobile and laptops.
 
