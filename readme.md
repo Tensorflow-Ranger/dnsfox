@@ -3,7 +3,7 @@
 
 # So, why would anyone even want their own DNS resolver?
 
-First things first, It's superrr cool xD
+First things first, It's super cool xD
 
 * **Custom Blocklists & "Nuclear Options":**  Manual Control: Instantly block specific domains (e.g., tiktok.com or facebook.com) for productivity or detox.
 
