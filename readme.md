@@ -1,7 +1,7 @@
 
 # Self-Hosted DNS Resolver 
 
-# So, Why would anyone even want their own DNS resolver?
+# So, why would anyone even want their own DNS resolver?
 
 First things first, It's superrr cool xD
 
