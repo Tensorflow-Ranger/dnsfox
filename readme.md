@@ -1,148 +1,116 @@
-Self-Hosted DNS Resolver using dnsdist + Unbound
 
-```markdown
-This repository documents how to set up a secure, private DNS resolver using:
+# Self-Hosted DNS Resolver 
 
-- dnsdist → front-end DNS proxy (ACLs, rate limiting, monitoring)
-- Unbound → recursive DNS resolver (the “brain”)
-```
+# So, Why would anyone even want their own DNS resolver?
 
-Client → dnsdist (port 53) → Unbound (port 5335) → Internet
+It's superrr cool xD
 
-```
+* **Total Privacy:** Your ISP cannot log your browsing history. All queries between your device and AWS are encrypted via TLS 1.3, making them look like standard web traffic.
+* **Battery & Data Savings:** By blocking ads at the DNS level, your device never downloads heavy tracking scripts, video ads, or banners. This reduces CPU cycles and radio usage, significantly extending battery life on mobile and laptops.
+* **App Monitoring:** Using the `dnsdist` live console or web dashboard, you can see exactly which background apps are "phoning home" and identify "chatty" telemetry services.
+* **Zero-Trust:** You bypass third-party resolvers like Google or Cloudflare. Your server talks directly to the Internet Root Servers via Unbound.
+* **Bypass Restrictions:** Take control of your network settings by clearing "Managed" browser profiles and OS-level restrictions.
+
+## High-Level Architecture
+
+The setup uses a frontend/backend model to isolate encryption from resolution logic:
+
+1. **Client (Mac/Phone):** Sends an encrypted HTTPS request (Port 443) to your domain.
+2. **dnsdist (Frontend):** Handles SSL/TLS termination, checks Access Control Lists (ACLs), and monitors traffic.
+3. **Unbound (Backend):** Performs recursive lookups by contacting Root, TLD, and Authoritative servers.
 
 ---
 
-Repository 
+## CRITICAL SECURITY WARNING
 
-- dnsdist.conf → main dnsdist configuration  
-- unbound.conf.d/ → modular Unbound configuration directory  
+**Never expose Port 53 to `0.0.0.0/0` (The World).** Open DNS resolvers are frequently used in **DNS Amplification Attacks**.
+
+* **Port 53 (UDP/TCP):** Only allow your specific Home IP in the AWS Security Group.
+* **Port 443 (TCP):** Safe to open to the world *only* if you have configured a strong `dnsdist` ACL to limit access to your own devices.
 
 ---
 
-Step 1: Install Dependencies
+## Step 1: Infrastructure & Domain
 
-Install dnsdist
+1. **AWS EC2:** Launch a t3.micro (Ubuntu). Assign an **Elastic IP**.
+2. **Domain:** Use a service like **DuckDNS** to point a subdomain to your Elastic IP.
+3. **SSL Certificate:** Generate certificates via Certbot:
 ```bash
-sudo apt update && sudo apt install -y dnsdist
-````
+sudo apt install certbot
+sudo certbot certonly --standalone -d your-domain.duckdns.org
 
-### Install Unbound
+```
+
+
+
+---
+
+## Step 2: Installation
 
 ```bash
-sudo apt install -y unbound
+sudo apt update && sudo apt install -y dnsdist unbound
+
 ```
 
 ---
 
-## Step 2: Configure Unbound (Backend Resolver)
+## Step 3: Configuration
 
-Unbound performs recursive resolution and listens **only on localhost**.
+### 1. Unbound (The Brain)
 
-### Copy Unbound configs from this repository
+Unbound performs recursive resolution and listens only on `127.0.0.1:5335`.
 
+* **Config:** Refer to the `unbound.conf.d/` directory in this repo.
+* **Setup:**
 ```bash
 sudo cp -r unbound.conf.d /etc/unbound/
-```
-
-Ensure `/etc/unbound/unbound.conf` includes:
-
-```conf
-include: "/etc/unbound/unbound.conf.d/*.conf"
-```
-
-Restart and enable Unbound:
-
-```bash
 sudo systemctl restart unbound
-sudo systemctl enable unbound
+
 ```
 
-Unbound will now listen on `127.0.0.1:5335`.
 
----
 
-## Step 3: Configure dnsdist (Frontend)
+### 2. dnsdist (The Bouncer)
 
-dnsdist handles:
+Handles Access Control, DoH encryption, and forwarding.
 
-* Access control (prevents open resolver abuse)
-* Rate limiting
-* Forwarding queries to Unbound
-* Web-based monitoring
-
-### Copy dnsdist configuration
-
+* **Config:** Refer to `dnsdist.conf` in this repo.
+* **Permissions:** Ensure `_dnsdist` can read the SSL certs:
 ```bash
-sudo cp dnsdist.conf /etc/dnsdist/dnsdist.conf
+sudo chown _dnsdist:_dnsdist /etc/dnsdist/certs/*.pem
+
 ```
 
-### IMPORTANT
 
-Before starting:
-
-* Edit `/etc/dnsdist/dnsdist.conf`
-* Replace `YOUR_HOME_IP` with your public IPv4
-* Add your IPv6 address if applicable
-
----
-
-## Step 4: Fix Permissions (Crucial)
-
-dnsdist runs as a restricted user and must be able to read its config.
-
-```bash
-sudo chown _dnsdist:_dnsdist /etc/dnsdist/dnsdist.conf
-```
-
----
-
-## Step 5: AWS Security Group Configuration
-
-Update **Inbound Rules** for your EC2 instance:
-
-| Protocol | Port | Source       | Purpose               |
-| -------- | ---- | ------------ | --------------------- |
-| UDP      | 53   | Your Home IP | DNS                   |
-| TCP      | 53   | Your Home IP | DNS (large responses) |
-| TCP      | 8083 | Your Home IP | dnsdist dashboard     |
-
-**Never expose port 53 to `0.0.0.0/0`**
-This would turn your server into an open resolver.
-
----
-
-## Step 6: Validate and Start dnsdist
-
-Check the configuration:
-
+* **Validation:**
 ```bash
 sudo dnsdist --check-config
-```
-
-Expected output:
 
 ```
-Configuration '/etc/dnsdist/dnsdist.conf' ok!
-```
 
-Start and enable dnsdist:
 
-```bash
-sudo systemctl restart dnsdist
-sudo systemctl enable dnsdist
-```
 
 ---
 
-## Step 7: Verify the Setup
+## Step 4: Client Setup (The Bootstrap)
 
-From your **local machine**, run:
+Because of the "Chicken and Egg" problem (finding the server's IP before the secure tunnel exists), you must:
 
-```bash
-dig @YOUR_AWS_PUBLIC_IP google.com
-```
-
-If you receive an IP address, your resolver is working correctly!
+1. **macOS Settings:** Add the **AWS Elastic IP** manually to your Network DNS settings. This "bootstraps" the lookup for your domain.
+2. **Browser Settings:** In Chrome/Firefox, enable **Secure DNS** and enter your URL:
+`https://your-domain.duckdns.org/dns-query`
 
 ---
+
+## Analytics & Monitoring
+
+To monitor queries in real-time and see which apps are active in the background:
+
+```bash
+# Watch the live log
+sudo journalctl -u dnsdist -f
+
+# Enter the interactive console (if configured)
+sudo dnsdist -c 127.0.0.1:8083 -a <your_key>
+
+```
