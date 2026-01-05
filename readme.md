@@ -168,3 +168,9 @@ sudo journalctl -u dnsdist -f
 sudo dnsdist -c 127.0.0.1:8083 -a <your_key>
 
 ```
+
+## Issues with Captive Portal 
+
+If you face issues with your captive portal while logging into wifi due to the private DNS configuration, use dnsfox.sh to automatically enable and disable the private dns settings. 
+
+NOTE: The given script is specific to MacOS. 
