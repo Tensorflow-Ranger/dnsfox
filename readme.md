@@ -174,3 +174,6 @@ sudo dnsdist -c 127.0.0.1:8083 -a <your_key>
 If you face issues with your captive portal while logging into wifi due to the private DNS configuration, use dnsfox.sh to automatically enable and disable the private dns settings. 
 
 NOTE: The given script is specific to MacOS. 
+
+## How do I configure my iPhone to use the private DNS?
+Use https://dns.notjakob.com/finalize.html to generate a profile. After downloading, visit settings and enable the profile. 
