@@ -177,3 +177,185 @@ NOTE: The given script is specific to MacOS.
 
 ## How do I configure my iPhone to use the private DNS?
 Use https://dns.notjakob.com/finalize.html to generate a profile. After downloading, visit settings and enable the profile. 
+
+Got it — you want the README **extended**, not re-explained, and it should **document exactly what we built** for:
+
+* AWS EventBridge
+* Lambda start/stop logic
+* SSM-based postponing
+* macOS GUI prompt via `launchctl` + AppleScript
+
+Below is a **drop-in README section** you can append as-is.
+It references configs/scripts instead of duplicating them, exactly like the rest of your README.
+
+---
+
+## ⏰ Automated EC2 Power Management (EventBridge + Lambda + macOS GUI)
+
+To reduce cloud costs while preserving usability, this setup includes a **fully automated EC2 start/stop system with human-in-the-loop overrides**.
+
+The design intentionally separates:
+
+* **Policy enforcement (AWS-side, always-on)**
+* **Human intent (local macOS GUI prompt)**
+
+This ensures correctness even if the laptop is offline.
+
+---
+
+## High-Level Design
+
+```
+macOS (10:45 PM GUI prompt)
+   └─ writes shutdown intent → SSM Parameter Store (ap-south-1)
+
+AWS EventBridge (hourly trigger)
+   └─ invokes Lambda (ap-south-2)
+        ├─ reads shutdown intent from SSM
+        ├─ stops EC2 at night (11 PM–2 AM)
+        └─ starts EC2 at 6 AM
+```
+
+---
+
+## 🛠️ AWS-Side Automation
+
+### 1. EventBridge (Authoritative Clock)
+
+* **Schedule:** Hourly
+* **Expression:**
+
+```text
+cron(0 * * * ? *)
+```
+
+EventBridge is used purely as a **reliable time source**.
+All decision logic lives in Lambda.
+
+---
+
+### 2. Lambda (Enforcer)
+
+Lambda enforces **two independent rules**:
+
+#### 🌙 Night Rule (11 PM – 2 AM IST)
+
+* Reads `/ec2/shutdown_at` from **SSM Parameter Store**
+* Shuts down the EC2 instance **only if current time ≥ shutdown_at**
+* Supports infinite postpones
+
+#### 🌅 Morning Rule (6 AM IST)
+
+* Starts the EC2 instance unconditionally
+* Resets availability for the next day
+
+> EC2 `start_instances` and `stop_instances` are idempotent — repeated calls are safe.
+
+📄 **Refer to:** `lambda/ec2_scheduler.py` in this repository.
+
+---
+
+### 3. Shared State: SSM Parameter Store
+
+* **Parameter Name:** `/ec2/shutdown_at`
+* **Region:** `ap-south-1`
+  *(SSM is not supported in ap-south-2)*
+
+The parameter stores a single ISO-8601 UTC timestamp representing the **earliest allowed shutdown time**.
+
+SSM acts as the **single source of truth** between:
+
+* macOS (human intent)
+* AWS Lambda (policy enforcement)
+
+---
+
+### 4. IAM Permissions
+
+#### Lambda Execution Role:
+
+* `ec2:StartInstances`
+* `ec2:StopInstances`
+* `ssm:GetParameter`
+
+#### macOS IAM User:
+
+* `ssm:PutParameter`
+
+---
+
+## 🖥️ macOS Human Override (GUI Prompt)
+
+### Why GUI Instead of Cron?
+
+* `cron` and background shell scripts **cannot present UI** on modern macOS
+* Apple requires GUI interactions to originate from **apps in the Aqua session**
+
+Therefore:
+
+* `launchctl` is used
+* It launches a **signed AppleScript application**, not a shell script
+
+---
+
+### 1. AppleScript Prompt App
+
+A minimal AppleScript app presents a dialog at **10:45 PM**:
+
+> “EC2 will shut down at 11:00 PM.
+> Postpone by 1 hour?”
+
+If the user selects **Yes**, the app calls a shell script that updates SSM.
+
+📄 **Refer to:** `macos/EC2ShutdownPrompt.applescript`
+
+Saved as:
+
+```
+EC2ShutdownPrompt.app
+```
+
+---
+
+### 2. macOS LaunchAgent
+
+A user-level LaunchAgent triggers the app daily.
+
+* **Location:**
+
+```text
+~/Library/LaunchAgents/com.ec2.shutdown.prompt.plist
+```
+
+* **Execution Time:** 10:45 PM local time
+* **Session Type:** Aqua (GUI-enabled)
+
+📄 **Refer to:** `macos/com.ec2.shutdown.prompt.plist`
+
+---
+
+### 3. Postpone Script (AWS Logic Only)
+
+The shell script invoked by the app:
+
+* Computes `now + 1 hour`
+* Writes the timestamp to SSM
+* Contains **no UI logic**
+
+📄 **Refer to:** `scripts/ec2_postpone.sh`
+
+---
+
+## Behavior Summary
+
+| Scenario                         | Result                          |
+| -------------------------------- | ------------------------------- |
+| Mac is awake at 10:45 PM         | GUI prompt appears              |
+| User clicks **Postpone**         | Shutdown delayed by 1 hour      |
+| User clicks **No**               | Shutdown proceeds at 11 PM      |
+| Mac is offline                   | No prompt; AWS still shuts down |
+| Multiple postpones               | Last timestamp always wins      |
+| Instance already stopped/started | No error (idempotent)           |
+| 6 AM                             | Instance automatically starts   |
+
+---
